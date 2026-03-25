@@ -4,6 +4,7 @@ metadata:
   name: {{ include "pr-generator.fullname" . }}-config
   labels:
     {{- include "pr-generator.labels" . | nindent 4 }}
+{{- include "pr-generator.validateProviders" . }}
 data:
   config.yaml: |
     scan_frequency: {{ .Values.config.scanFrequency }}

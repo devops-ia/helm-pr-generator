@@ -1,7 +1,7 @@
 apiVersion: v2
 name: pr-generator
-version: 1.2.2
-appVersion: "v1.2.2"
+version: 1.2.3
+appVersion: "v1.2.3"
 description: Helm chart for pr-generator — automated PR creation from branch patterns
 type: application
 home: https://github.com/devops-ia/helm-pr-generator
