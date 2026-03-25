@@ -1,7 +1,10 @@
+{{- $fullname := include "pr-generator.fullname" . }}
+{{- $ghSecretName := .Values.secrets.github.existingSecret | default (printf "%s-github-secrets" $fullname) }}
+{{- $bbSecretName := .Values.secrets.bitbucket.existingSecret | default (printf "%s-bitbucket-secrets" $fullname) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "pr-generator.fullname" . }}
+  name: {{ $fullname }}
   labels:
     {{- include "pr-generator.labels" . | nindent 4 }}
   {{- with .Values.annotations }}
@@ -51,19 +54,24 @@ spec:
           env:
             - name: CONFIG_PATH
               value: "/etc/pr-generator/config.yaml"
-            {{- if .Values.config.providers.bitbucket.enabled }}
-            - name: {{ .Values.config.providers.bitbucket.tokenEnv }}
+            {{- range $name, $p := .Values.config.providers }}
+            {{- if $p.enabled }}
+            {{- $ptype := $p.type | default $name }}
+            {{- if and (eq $ptype "github") (eq ($p.authMethod | default "app") "pat") }}
+            - name: {{ $p.tokenEnv | default "GITHUB_TOKEN" }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ if .Values.secrets.bitbucket.existingSecret }}{{ .Values.secrets.bitbucket.existingSecret }}{{ else }}{{ include "pr-generator.fullname" . }}-secrets{{ end }}
-                  key: {{ .Values.secrets.bitbucket.tokenKey }}
+                  name: {{ $ghSecretName }}
+                  key: {{ $p.tokenKey | default "token" }}
             {{- end }}
-            {{- if and .Values.config.providers.github.enabled (eq .Values.config.providers.github.authMethod "pat") }}
-            - name: {{ .Values.config.providers.github.tokenEnv }}
+            {{- if eq $ptype "bitbucket" }}
+            - name: {{ $p.tokenEnv | default "BITBUCKET_TOKEN" }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ if .Values.secrets.github.existingSecret }}{{ .Values.secrets.github.existingSecret }}{{ else }}{{ include "pr-generator.fullname" . }}-secrets{{ end }}
-                  key: {{ .Values.secrets.github.tokenKey }}
+                  name: {{ $bbSecretName }}
+                  key: {{ $p.tokenKey | default "token" }}
+            {{- end }}
+            {{- end }}
             {{- end }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
@@ -76,8 +84,14 @@ spec:
             - name: config
               mountPath: /etc/pr-generator
               readOnly: true
-            {{- if and .Values.config.providers.github.enabled (eq .Values.config.providers.github.authMethod "app") }}
-            - name: github-private-key
+            {{- $hasGhApp := false }}
+            {{- range $name, $p := .Values.config.providers }}
+            {{- if and $p.enabled (eq ($p.type | default $name) "github") (eq ($p.authMethod | default "app") "app") }}
+            {{- $hasGhApp = true }}
+            {{- end }}
+            {{- end }}
+            {{- if $hasGhApp }}
+            - name: github-secrets
               mountPath: /secrets/github
               readOnly: true
             {{- end }}
@@ -95,14 +109,27 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: {{ include "pr-generator.fullname" . }}-config
-        {{- if and .Values.config.providers.github.enabled (eq .Values.config.providers.github.authMethod "app") }}
-        - name: github-private-key
+            name: {{ $fullname }}-config
+        {{- $ghAppKeys := list }}
+        {{- $seen := dict }}
+        {{- range $name, $p := .Values.config.providers }}
+        {{- if and $p.enabled (eq ($p.type | default $name) "github") (eq ($p.authMethod | default "app") "app") }}
+        {{- $keyName := $p.privateKeyKey | default "private-key.pem" }}
+        {{- if not (hasKey $seen $keyName) }}
+        {{- $_ := set $seen $keyName true }}
+        {{- $ghAppKeys = append $ghAppKeys $keyName }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- if $ghAppKeys }}
+        - name: github-secrets
           secret:
-            secretName: {{ if .Values.secrets.github.existingSecret }}{{ .Values.secrets.github.existingSecret }}{{ else }}{{ include "pr-generator.fullname" . }}-secrets{{ end }}
+            secretName: {{ $ghSecretName }}
             items:
-              - key: {{ .Values.secrets.github.privateKeyKey }}
-                path: {{ .Values.secrets.github.privateKeyKey }}
+              {{- range $ghAppKeys }}
+              - key: {{ . }}
+                path: {{ . }}
+              {{- end }}
         {{- end }}
         {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}

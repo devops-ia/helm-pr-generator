@@ -12,31 +12,37 @@ data:
     dry_run: {{ .Values.config.dryRun }}
     health_port: {{ .Values.config.healthPort }}
 
-    {{- if or .Values.config.providers.github.enabled .Values.config.providers.bitbucket.enabled }}
+    {{- $hasEnabled := false }}
+    {{- range $name, $p := .Values.config.providers }}
+    {{- if $p.enabled }}{{- $hasEnabled = true }}{{- end }}
+    {{- end }}
+    {{- if $hasEnabled }}
     providers:
-      {{- if .Values.config.providers.github.enabled }}
-      github:
+      {{- range $name, $p := .Values.config.providers }}
+      {{- if $p.enabled }}
+      {{- $ptype := $p.type | default $name }}
+      {{ $name }}:
         enabled: true
-        owner: {{ .Values.config.providers.github.owner | quote }}
-        repo: {{ .Values.config.providers.github.repo | quote }}
-        auth_method: {{ .Values.config.providers.github.authMethod | quote }}
-        timeout: {{ .Values.config.providers.github.timeout }}
-        {{- if eq .Values.config.providers.github.authMethod "pat" }}
-        token_env: {{ .Values.config.providers.github.tokenEnv | quote }}
+        {{- if eq $ptype "github" }}
+        owner: {{ $p.owner | quote }}
+        repo: {{ $p.repo | quote }}
+        auth_method: {{ $p.authMethod | default "app" | quote }}
+        timeout: {{ $p.timeout | default 30 }}
+        {{- if eq ($p.authMethod | default "app") "pat" }}
+        token_env: {{ $p.tokenEnv | default "GITHUB_TOKEN" | quote }}
         {{- else }}
-        app_id: {{ .Values.config.providers.github.appId | quote }}
-        installation_id: {{ .Values.config.providers.github.installationId | quote }}
-        private_key_path: "/secrets/github/{{ .Values.secrets.github.privateKeyKey }}"
+        app_id: {{ $p.appId | quote }}
+        installation_id: {{ $p.installationId | default "" | quote }}
+        private_key_path: "/secrets/github/{{ $p.privateKeyKey | default "private-key.pem" }}"
+        {{- end }}
+        {{- else if eq $ptype "bitbucket" }}
+        workspace: {{ $p.workspace | quote }}
+        repo_slug: {{ $p.repoSlug | quote }}
+        token_env: {{ $p.tokenEnv | default "BITBUCKET_TOKEN" | quote }}
+        close_source_branch: {{ $p.closeSourceBranch | default true }}
+        timeout: {{ $p.timeout | default 30 }}
         {{- end }}
       {{- end }}
-      {{- if .Values.config.providers.bitbucket.enabled }}
-      bitbucket:
-        enabled: true
-        workspace: {{ .Values.config.providers.bitbucket.workspace | quote }}
-        repo_slug: {{ .Values.config.providers.bitbucket.repoSlug | quote }}
-        token_env: {{ .Values.config.providers.bitbucket.tokenEnv | quote }}
-        close_source_branch: {{ .Values.config.providers.bitbucket.closeSourceBranch }}
-        timeout: {{ .Values.config.providers.bitbucket.timeout }}
       {{- end }}
     {{- else }}
     providers: {}
