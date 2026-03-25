@@ -1,4 +1,4 @@
-# helm-pr-generator
+# helm pr-generator
 
 Helm chart for [pr-generator](https://github.com/devops-ia/pr-generator) — automated PR creation from branch patterns detected by Argo CD Image Updater.
 
