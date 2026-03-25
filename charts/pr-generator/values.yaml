@@ -1,0 +1,117 @@
+# Pre-built Docker image (no initContainers)
+image:
+  repository: devopsiaci/pr-generator
+  tag: ""                        # default: Chart.appVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Application configuration — rendered into /etc/pr-generator/config.yaml
+config:
+  scanFrequency: 300
+  logLevel: INFO
+  logFormat: text              # "text" (human-readable) or "json" (structured, recommended for production)
+  dryRun: false
+  healthPort: 8080
+
+  providers:
+    github:
+      enabled: true
+      authMethod: app            # "app" (GitHub App) or "pat" (Personal Access Token)
+      owner: ""
+      repo: ""
+      # GitHub App (authMethod: app)
+      appId: ""
+      installationId: ""
+      # GitHub PAT (authMethod: pat)
+      tokenEnv: "GITHUB_TOKEN"   # env var name injected into the container
+      timeout: 30
+    bitbucket:
+      enabled: true
+      workspace: ""
+      repoSlug: ""
+      tokenEnv: "BITBUCKET_TOKEN"  # env var name injected into the container
+      closeSourceBranch: true       # delete source branch after PR is merged
+      timeout: 30
+
+  # Define one or more scan rules.
+  # Each rule matches branch names with a regex and maps providers to destination branches.
+  rules:
+    - pattern: "argocd-image-updater-.*-nonpro-.*"
+      destinations:
+        github: "develop"
+        bitbucket: "nonpro"
+    - pattern: "argocd-image-updater-.*-pro-.*"
+      destinations:
+        github: "main"
+        bitbucket: "master"
+
+# Secrets configuration.
+# Option A (recommended for production): reference existing Kubernetes Secrets.
+# Option B (dev/test only): provide values inline — the chart creates the Secret.
+secrets:
+  github:
+    existingSecret: ""           # name of an existing Secret
+    # GitHub App (authMethod: app)
+    privateKeyKey: "private-key.pem"
+    privateKey: ""               # inline PEM — never use in production
+    # GitHub PAT (authMethod: pat)
+    tokenKey: "token"
+    token: ""                    # inline PAT — never use in production
+  bitbucket:
+    existingSecret: ""
+    tokenKey: "token"
+    token: ""                    # inline token — never use in production
+
+# Kubernetes standard fields
+podAnnotations: {}
+podLabels: {}
+annotations: {}
+podSecurityContext: {}
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  limits:
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+livenessProbe:
+  httpGet:
+    path: /livez
+    port: health
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: health
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
+
+volumes: []
+volumeMounts: []
+env: []
+envFrom: []
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+extraObjects: []

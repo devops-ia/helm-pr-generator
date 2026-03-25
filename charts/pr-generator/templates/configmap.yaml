@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pr-generator.fullname" . }}-config
+  labels:
+    {{- include "pr-generator.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    scan_frequency: {{ .Values.config.scanFrequency }}
+    log_level: {{ .Values.config.logLevel | quote }}
+    log_format: {{ .Values.config.logFormat | quote }}
+    dry_run: {{ .Values.config.dryRun }}
+    health_port: {{ .Values.config.healthPort }}
+
+    providers:
+      {{- if .Values.config.providers.github.enabled }}
+      github:
+        enabled: true
+        owner: {{ .Values.config.providers.github.owner | quote }}
+        repo: {{ .Values.config.providers.github.repo | quote }}
+        auth_method: {{ .Values.config.providers.github.authMethod | quote }}
+        timeout: {{ .Values.config.providers.github.timeout }}
+        {{- if eq .Values.config.providers.github.authMethod "pat" }}
+        token_env: {{ .Values.config.providers.github.tokenEnv | quote }}
+        {{- else }}
+        app_id: {{ .Values.config.providers.github.appId | quote }}
+        installation_id: {{ .Values.config.providers.github.installationId | quote }}
+        private_key_path: "/secrets/github/{{ .Values.secrets.github.privateKeyKey }}"
+        {{- end }}
+      {{- end }}
+      {{- if .Values.config.providers.bitbucket.enabled }}
+      bitbucket:
+        enabled: true
+        workspace: {{ .Values.config.providers.bitbucket.workspace | quote }}
+        repo_slug: {{ .Values.config.providers.bitbucket.repoSlug | quote }}
+        token_env: {{ .Values.config.providers.bitbucket.tokenEnv | quote }}
+        close_source_branch: {{ .Values.config.providers.bitbucket.closeSourceBranch }}
+        timeout: {{ .Values.config.providers.bitbucket.timeout }}
+      {{- end }}
+
+    rules:
+      {{- range .Values.config.rules }}
+      - pattern: {{ .pattern | quote }}
+        destinations:
+          {{- range $provider, $branch := .destinations }}
+          {{ $provider }}: {{ $branch | quote }}
+          {{- end }}
+      {{- end }}
