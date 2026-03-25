@@ -1,6 +1,6 @@
 apiVersion: v2
 name: pr-generator
-version: 2.1.0
+version: 1.2.1
 appVersion: "v1.2.1"
 description: Helm chart for pr-generator — automated PR creation from branch patterns
 type: application
@@ -15,4 +15,4 @@ keywords:
   - pull-request
 maintainers:
   - email: adrianmg231189@gmail.com
-    name: adrianmg231189
+    name: amartingarcia
