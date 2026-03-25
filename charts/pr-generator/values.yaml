@@ -1,0 +1,141 @@
+# Pre-built Docker image (no initContainers)
+image:
+  repository: devopsiaci/pr-generator
+  tag: ""                        # default: Chart.appVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Application configuration — rendered into /etc/pr-generator/config.yaml
+config:
+  scanFrequency: 300
+  logLevel: INFO
+  logFormat: text              # "text" (human-readable) or "json" (structured, recommended for production)
+  dryRun: false
+  healthPort: 8080
+
+  # Provider definitions. Each key is a free-form name used in rules[].destinations.
+  # The keys "github" and "bitbucket" automatically infer their type; all other names
+  # require an explicit "type: github" or "type: bitbucket" field.
+  #
+  # Each provider references credentials from the global Secret for its type
+  # (secrets.github / secrets.bitbucket). Use privateKeyKey / tokenKey to select
+  # which key inside that Secret holds the credential for this provider.
+  #
+  # Multi-org example — two GitHub orgs + one Bitbucket, all via existingSecret:
+  providers:
+    github:
+      enabled: false
+      # type: github             # inferred from key name; set explicitly for non-standard names
+      authMethod: app            # "app" (GitHub App) or "pat" (Personal Access Token)
+      owner: ""
+      repo: ""
+      # GitHub App (authMethod: app)
+      appId: ""
+      installationId: ""         # auto-resolved from the repo if empty
+      privateKeyKey: "private-key.pem"  # key in secrets.github Secret holding the PEM
+      # GitHub PAT (authMethod: pat)
+      tokenEnv: "GITHUB_TOKEN"          # env var name injected into the container
+      tokenKey: "token"                 # key in secrets.github Secret holding the PAT
+      timeout: 30
+    bitbucket:
+      enabled: false
+      # type: bitbucket          # inferred from key name; set explicitly for non-standard names
+      workspace: ""
+      repoSlug: ""
+      tokenEnv: "BITBUCKET_TOKEN"  # env var name injected into the container
+      tokenKey: "token"             # key in secrets.bitbucket Secret holding the token
+      closeSourceBranch: true
+      timeout: 30
+    bitbucket-org1:
+      enabled: false
+      # type: bitbucket          # inferred from key name; set explicitly for non-standard names
+      workspace: ""
+      repoSlug: ""
+      tokenEnv: "BITBUCKET_TOKEN"  # env var name injected into the container
+      tokenKey: "token"             # key in secrets.bitbucket Secret holding the token
+      closeSourceBranch: true
+      timeout: 30
+
+  # Define one or more scan rules.
+  # Each rule matches branch names with a regex and maps provider keys to destination branches.
+  rules:
+    - pattern: "argocd-image-updater-.*-dev-.*"
+      destinations:
+        github: "develop"
+        bitbucket: "dev"
+        bitbucket-org1: "dev"
+    - pattern: "argocd-image-updater-.*-pro-.*"
+      destinations:
+        github: "main"
+        bitbucket: "master"
+
+# Global secrets — one per provider type.
+# All providers of the same type share this Secret.
+# Each provider's privateKeyKey / tokenKey selects which key to read inside the Secret.
+#
+# Option A (production): reference an existing Secret (e.g. managed by External Secrets).
+# Option B (dev/test only): provide values inline — the chart creates the Secret.
+#   Inline only supports a single credential per type. For multi-provider setups
+#   with different credentials, always use existingSecret.
+secrets:
+  github:
+    existingSecret: ""           # name of existing Secret; all GitHub providers use this
+    privateKey: ""               # inline PEM for GitHub App — dev/test only
+    token: ""                    # inline PAT for GitHub PAT — dev/test only
+  bitbucket:
+    existingSecret: ""           # name of existing Secret; all Bitbucket providers use this
+    token: ""                    # inline token — dev/test only
+
+# Kubernetes standard fields
+podAnnotations: {}
+podLabels: {}
+annotations: {}
+podSecurityContext: {}
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  limits:
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+livenessProbe:
+  httpGet:
+    path: /livez
+    port: health
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: health
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
+
+volumes: []
+volumeMounts: []
+env: []
+envFrom: []
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+extraObjects: []

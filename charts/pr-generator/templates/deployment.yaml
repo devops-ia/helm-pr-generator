@@ -1,0 +1,152 @@
+{{- $fullname := include "pr-generator.fullname" . }}
+{{- $ghSecretName := .Values.secrets.github.existingSecret | default (printf "%s-github-secrets" $fullname) }}
+{{- $bbSecretName := .Values.secrets.bitbucket.existingSecret | default (printf "%s-bitbucket-secrets" $fullname) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- include "pr-generator.labels" . | nindent 4 }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  # DO NOT increase replicas. pr-generator uses in-memory per-cycle caches and
+  # has no distributed coordination. Running >1 active replica causes duplicate
+  # PR creation attempts. HA is achieved via liveness/readiness probes and
+  # Kubernetes restart policies. If active-standby HA is required, implement
+  # leader election via Kubernetes Lease API before changing this value.
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "pr-generator.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        # Trigger a rollout whenever the config changes
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "pr-generator.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: default
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      # No initContainers — the Docker image already contains all dependencies
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: health
+              containerPort: {{ .Values.config.healthPort }}
+              protocol: TCP
+          env:
+            - name: CONFIG_PATH
+              value: "/etc/pr-generator/config.yaml"
+            {{- range $name, $p := .Values.config.providers }}
+            {{- if $p.enabled }}
+            {{- $ptype := $p.type | default $name }}
+            {{- if and (eq $ptype "github") (eq ($p.authMethod | default "app") "pat") }}
+            - name: {{ $p.tokenEnv | default "GITHUB_TOKEN" }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $ghSecretName }}
+                  key: {{ $p.tokenKey | default "token" }}
+            {{- end }}
+            {{- if eq $ptype "bitbucket" }}
+            - name: {{ $p.tokenEnv | default "BITBUCKET_TOKEN" }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $bbSecretName }}
+                  key: {{ $p.tokenKey | default "token" }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/pr-generator
+              readOnly: true
+            {{- $hasGhApp := false }}
+            {{- range $name, $p := .Values.config.providers }}
+            {{- if and $p.enabled (eq ($p.type | default $name) "github") (eq ($p.authMethod | default "app") "app") }}
+            {{- $hasGhApp = true }}
+            {{- end }}
+            {{- end }}
+            {{- if $hasGhApp }}
+            - name: github-secrets
+              mountPath: /secrets/github
+              readOnly: true
+            {{- end }}
+            {{- with .Values.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $fullname }}-config
+        {{- $ghAppKeys := list }}
+        {{- $seen := dict }}
+        {{- range $name, $p := .Values.config.providers }}
+        {{- if and $p.enabled (eq ($p.type | default $name) "github") (eq ($p.authMethod | default "app") "app") }}
+        {{- $keyName := $p.privateKeyKey | default "private-key.pem" }}
+        {{- if not (hasKey $seen $keyName) }}
+        {{- $_ := set $seen $keyName true }}
+        {{- $ghAppKeys = append $ghAppKeys $keyName }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- if $ghAppKeys }}
+        - name: github-secrets
+          secret:
+            secretName: {{ $ghSecretName }}
+            items:
+              {{- range $ghAppKeys }}
+              - key: {{ . }}
+                path: {{ . }}
+              {{- end }}
+        {{- end }}
+        {{- with .Values.volumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

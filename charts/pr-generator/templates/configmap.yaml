@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pr-generator.fullname" . }}-config
+  labels:
+    {{- include "pr-generator.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    scan_frequency: {{ .Values.config.scanFrequency }}
+    log_level: {{ .Values.config.logLevel | quote }}
+    log_format: {{ .Values.config.logFormat | quote }}
+    dry_run: {{ .Values.config.dryRun }}
+    health_port: {{ .Values.config.healthPort }}
+
+    {{- $hasEnabled := false }}
+    {{- range $name, $p := .Values.config.providers }}
+    {{- if $p.enabled }}{{- $hasEnabled = true }}{{- end }}
+    {{- end }}
+    {{- if $hasEnabled }}
+    providers:
+      {{- range $name, $p := .Values.config.providers }}
+      {{- if $p.enabled }}
+      {{- $ptype := $p.type | default $name }}
+      {{ $name }}:
+        enabled: true
+        {{- if eq $ptype "github" }}
+        owner: {{ $p.owner | quote }}
+        repo: {{ $p.repo | quote }}
+        auth_method: {{ $p.authMethod | default "app" | quote }}
+        timeout: {{ $p.timeout | default 30 }}
+        {{- if eq ($p.authMethod | default "app") "pat" }}
+        token_env: {{ $p.tokenEnv | default "GITHUB_TOKEN" | quote }}
+        {{- else }}
+        app_id: {{ $p.appId | quote }}
+        installation_id: {{ $p.installationId | default "" | quote }}
+        private_key_path: "/secrets/github/{{ $p.privateKeyKey | default "private-key.pem" }}"
+        {{- end }}
+        {{- else if eq $ptype "bitbucket" }}
+        workspace: {{ $p.workspace | quote }}
+        repo_slug: {{ $p.repoSlug | quote }}
+        token_env: {{ $p.tokenEnv | default "BITBUCKET_TOKEN" | quote }}
+        close_source_branch: {{ $p.closeSourceBranch | default true }}
+        timeout: {{ $p.timeout | default 30 }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+    {{- else }}
+    providers: {}
+    {{- end }}
+
+    rules:
+      {{- range .Values.config.rules }}
+      - pattern: {{ .pattern | quote }}
+        destinations:
+          {{- range $provider, $branch := .destinations }}
+          {{ $provider }}: {{ $branch | quote }}
+          {{- end }}
+      {{- end }}
