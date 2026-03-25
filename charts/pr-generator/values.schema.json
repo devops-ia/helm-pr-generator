@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "pr-generator Helm chart values",
+  "type": "object",
+  "properties": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      },
+      "required": ["repository"]
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "scanFrequency": { "type": "integer", "minimum": 10 },
+        "logLevel": { "type": "string", "enum": ["DEBUG", "INFO", "WARNING", "ERROR"] },
+        "logFormat": { "type": "string", "enum": ["text", "json"] },
+        "dryRun": { "type": "boolean" },
+        "healthPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "providers": {
+          "type": "object",
+          "properties": {
+            "github": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "authMethod": { "type": "string", "enum": ["app", "pat"] },
+                "owner": { "type": "string" },
+                "repo": { "type": "string" },
+                "appId": { "type": "string" },
+                "installationId": { "type": "string" },
+                "tokenEnv": { "type": "string" },
+                "timeout": { "type": "number", "minimum": 1 }
+              }
+            },
+            "bitbucket": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "workspace": { "type": "string" },
+                "repoSlug": { "type": "string" },
+                "tokenEnv": { "type": "string" },
+                "closeSourceBranch": { "type": "boolean" },
+                "timeout": { "type": "number", "minimum": 1 }
+              }
+            }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "pattern": { "type": "string", "minLength": 1 },
+              "destinations": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": { "type": "string" }
+              }
+            },
+            "required": ["pattern", "destinations"]
+          }
+        }
+      },
+      "required": ["rules"]
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "github": {
+          "type": "object",
+          "properties": {
+            "existingSecret": { "type": "string" },
+            "privateKeyKey": { "type": "string" },
+            "privateKey": { "type": "string" },
+            "tokenKey": { "type": "string" },
+            "token": { "type": "string" }
+          }
+        },
+        "bitbucket": {
+          "type": "object",
+          "properties": {
+            "existingSecret": { "type": "string" },
+            "tokenKey": { "type": "string" },
+            "token": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

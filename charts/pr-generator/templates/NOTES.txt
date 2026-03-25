@@ -1,0 +1,29 @@
+pr-generator {{ .Chart.AppVersion }} has been deployed successfully.
+
+┌─ Health endpoints ───────────────────────────────────────────────────────┐
+│  kubectl port-forward svc/{{ include "pr-generator.fullname" . }} {{ .Values.config.healthPort }}:{{ .Values.config.healthPort }} -n {{ .Release.Namespace }}
+│
+│  curl http://localhost:{{ .Values.config.healthPort }}/livez    # liveness
+│  curl http://localhost:{{ .Values.config.healthPort }}/readyz   # readiness (ready after first cycle)
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌─ Configuration ──────────────────────────────────────────────────────────┐
+{{- if .Values.config.dryRun }}
+│  ⚠  DRY-RUN mode is ENABLED — no PRs will be created.
+{{- end }}
+│  Scan frequency : {{ .Values.config.scanFrequency }}s
+│  Log level      : {{ .Values.config.logLevel }}
+│  Log format     : {{ .Values.config.logFormat }}
+│  Rules          : {{ len .Values.config.rules }}
+│  Providers      :
+{{- if .Values.config.providers.github.enabled }}
+│    • GitHub (auth: {{ .Values.config.providers.github.authMethod }})  {{ .Values.config.providers.github.owner }}/{{ .Values.config.providers.github.repo }}
+{{- end }}
+{{- if .Values.config.providers.bitbucket.enabled }}
+│    • Bitbucket  {{ .Values.config.providers.bitbucket.workspace }}/{{ .Values.config.providers.bitbucket.repoSlug }}
+{{- end }}
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌─ Logs ───────────────────────────────────────────────────────────────────┐
+│  kubectl logs -l app.kubernetes.io/name={{ include "pr-generator.name" . }} -n {{ .Release.Namespace }} -f
+└──────────────────────────────────────────────────────────────────────────┘
