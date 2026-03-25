@@ -4,7 +4,6 @@ metadata:
   name: {{ include "pr-generator.fullname" . }}-config
   labels:
     {{- include "pr-generator.labels" . | nindent 4 }}
-{{- include "pr-generator.validateProviders" . }}
 data:
   config.yaml: |
     scan_frequency: {{ .Values.config.scanFrequency }}
@@ -13,6 +12,7 @@ data:
     dry_run: {{ .Values.config.dryRun }}
     health_port: {{ .Values.config.healthPort }}
 
+    {{- if or .Values.config.providers.github.enabled .Values.config.providers.bitbucket.enabled }}
     providers:
       {{- if .Values.config.providers.github.enabled }}
       github:
@@ -38,6 +38,9 @@ data:
         close_source_branch: {{ .Values.config.providers.bitbucket.closeSourceBranch }}
         timeout: {{ .Values.config.providers.bitbucket.timeout }}
       {{- end }}
+    {{- else }}
+    providers: {}
+    {{- end }}
 
     rules:
       {{- range .Values.config.rules }}

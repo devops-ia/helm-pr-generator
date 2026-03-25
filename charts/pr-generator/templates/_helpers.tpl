@@ -48,12 +48,4 @@ app.kubernetes.io/name: {{ include "pr-generator.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-{{/*
-Validate that at least one provider is enabled.
-Fails helm install/upgrade at template rendering time rather than at runtime.
-*/}}
-{{- define "pr-generator.validateProviders" -}}
-{{- if and (not .Values.config.providers.github.enabled) (not .Values.config.providers.bitbucket.enabled) -}}
-{{- fail "At least one provider must be enabled. Set config.providers.github.enabled=true or config.providers.bitbucket.enabled=true." -}}
-{{- end -}}
-{{- end }}
+
