@@ -3,6 +3,30 @@ entries:
   pr-generator:
   - apiVersion: v2
     appVersion: v1.0.2
+    created: "2026-03-26T11:43:17.987404782Z"
+    description: Helm chart for pr-generator — automated PR creation from branch patterns
+    digest: 3a7afb24a3a7bb127fbcaf38b24d5f9f85421648a110b9b90c4c418a18498411
+    home: https://github.com/devops-ia/helm-pr-generator
+    keywords:
+    - pr-generator
+    - automation
+    - devops
+    - pull-request
+    maintainers:
+    - email: hello@ialejandro.rocks
+      name: ialejandro
+    - email: adrianmg231189@gmail.com
+      name: amartingarcia
+    name: pr-generator
+    sources:
+    - https://github.com/devops-ia/pr-generator
+    - https://github.com/devops-ia/helm-pr-generator
+    type: application
+    urls:
+    - https://github.com/devops-ia/helm-pr-generator/releases/download/v1.0.4/pr-generator-1.0.4.tgz
+    version: 1.0.4
+  - apiVersion: v2
+    appVersion: v1.0.2
     created: "2026-03-26T11:40:51.389221825Z"
     description: Helm chart for pr-generator — automated PR creation from branch patterns
     digest: db7a5ce24fed87d2d77bf0bd65c187340657285af0f7ab611b6a33f424415cba
@@ -71,4 +95,4 @@ entries:
     urls:
     - https://github.com/devops-ia/helm-pr-generator/releases/download/v1.0.0/pr-generator-1.0.0.tgz
     version: 1.0.0
-generated: "2026-03-26T11:40:51.389235591Z"
+generated: "2026-03-26T11:43:17.987424629Z"
