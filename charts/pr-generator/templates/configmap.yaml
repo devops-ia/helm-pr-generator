@@ -23,6 +23,9 @@ data:
       {{- $ptype := $p.type | default $name }}
       {{ $name }}:
         enabled: true
+        {{- if ne $name $ptype }}
+        type: {{ $ptype }}
+        {{- end }}
         {{- if eq $ptype "github" }}
         owner: {{ $p.owner | quote }}
         repo: {{ $p.repo | quote }}
