@@ -2,12 +2,19 @@
 
 Helm chart for [pr-generator](https://github.com/devops-ia/pr-generator) — automated PR creation from branch patterns detected by Argo CD Image Updater.
 
+## Usage
+
+Charts are available in:
+
+* [Chart Repository](https://helm.sh/docs/topics/chart_repository/)
+* [OCI Artifacts](https://helm.sh/docs/topics/registries/)
+
 ## TL;DR
 
 ```bash
-helm repo add devops-ia https://devops-ia.github.io/helm-pr-generator
+helm repo add pr-generator https://devops-ia.github.io/helm-pr-generator
 helm repo update
-helm install pr-generator devops-ia/pr-generator
+helm install [RELEASE_NAME] pr-generator/pr-generator
 ```
 
 ## Introduction
