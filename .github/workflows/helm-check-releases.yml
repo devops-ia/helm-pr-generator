@@ -21,7 +21,8 @@ jobs:
       - name: Get current release
         id: current_release
         run: |
-          current_release=$(grep appVersion charts/pr-generator/Chart.yaml | awk '{ print $2 }' | tr -d '"')          echo "current_release=$current_release" >> $GITHUB_OUTPUT
+          current_release=$(grep appVersion charts/pr-generator/Chart.yaml | awk '{ print $2 }' | tr -d '"')
+          echo "current_release=$current_release" >> $GITHUB_OUTPUT
 
       - name: Install updatecli
         uses: updatecli/updatecli-action@2cc8e6d8e356d76b0280cdd03766c36596a0614e # v3.0.0
@@ -33,12 +34,13 @@ jobs:
       - name: Get latest release
         id: latest_release
         run: |
-          latest_release=$(grep appVersion charts/pr-generator/Chart.yaml | awk '{ print $2 }' | tr -d '"')          echo "latest_release=$latest_release" >> $GITHUB_OUTPUT
+          latest_release=$(grep appVersion charts/pr-generator/Chart.yaml | awk '{ print $2 }' | tr -d '"')
+          echo "latest_release=$latest_release" >> $GITHUB_OUTPUT
 
       - name: Check if release changed
         id: check_changes
         run: |
-          if [ ${{ steps.latest_release.outputs.latest_release }} != ${{ steps.current_release.outputs.current_release }} ]; then
+          if [ "${{ steps.latest_release.outputs.latest_release }}" != "${{ steps.current_release.outputs.current_release }}" ]; then
             echo "release_changed=true" >> $GITHUB_OUTPUT
           fi
 
