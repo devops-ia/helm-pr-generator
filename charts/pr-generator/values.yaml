@@ -1,6 +1,6 @@
 # Pre-built Docker image (no initContainers)
 image:
-  repository: devopsiaci/pr-generator
+  repository: ghcr.io/devops-ia/pr-generator
   tag: ""                        # default: Chart.appVersion
   pullPolicy: IfNotPresent
 

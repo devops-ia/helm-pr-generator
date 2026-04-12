@@ -1,19 +1,43 @@
 sources:
   pr-generator:
-    kind: dockerimage
+    kind: githubrelease
     spec:
-      image: devopsiaci/pr-generator
-      architecture: linux/amd64
+      owner: devops-ia
+      repository: pr-generator
       versionfilter:
         kind: semver
+
+scms:
+  github:
+    kind: github
+    spec:
+      user: '{{ requiredEnv "UPDATECLI_GITHUB_ACTOR" }}'
+      email: "github-actions[bot]@users.noreply.github.com"
+      owner: devops-ia
+      repository: helm-pr-generator
+      token: '{{ requiredEnv "UPDATECLI_GITHUB_TOKEN" }}'
+      username: '{{ requiredEnv "UPDATECLI_GITHUB_ACTOR" }}'
+      branch: main
+
 conditions: {}
+
 targets:
-  pr-generator-helm:
+  bump-appversion:
     name: bump pr-generator helm chart appVersion
     kind: helmchart
+    scmid: github
     spec:
       name: charts/pr-generator
       file: Chart.yaml
       key: $.appVersion
       versionincrement: patch
     sourceid: pr-generator
+
+actions:
+  pr:
+    kind: github/pullrequest
+    scmid: github
+    title: 'chore(dep): update pr-generator to {{ source "pr-generator" }}'
+    spec:
+      labels:
+        - auto-pr-bump-version
