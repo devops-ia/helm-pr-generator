@@ -1,4 +1,20 @@
 {
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "helm-pr-generator",
+  "description": "Helm chart for pr-generator — deploys the automated PR creation daemon on Kubernetes. Supports GitHub App and PAT authentication, Bitbucket Cloud, multi-provider setups, and optional ServiceAccount/PDB creation.",
   "url": "https://context7.com/devops-ia/helm-pr-generator",
-  "public_key": "pk_poNqP0E20Jn62M589pdY6"
+  "public_key": "pk_poNqP0E20Jn62M589pdY6",
+  "folders": ["charts"],
+  "excludeFolders": [".github"],
+  "excludeFiles": ["CHANGELOG.md"],
+  "rules": [
+    "The chart enforces replicas: 1 — do not increase; the application has no distributed coordination",
+    "Provider names 'github' and 'bitbucket' auto-infer their type; all other names require an explicit type field",
+    "Each Bitbucket or GitHub PAT provider must use a unique tokenEnv value to avoid credential collisions",
+    "config.rules requires minItems: 1 — the chart will not install without at least one rule",
+    "Use secrets.github.existingSecret / secrets.bitbucket.existingSecret for production; inline secrets are for dev/test only",
+    "serviceAccount.create defaults to true; set to false and provide a name to use an existing ServiceAccount",
+    "startupProbe is empty by default (opt-in); enable it when the app needs extra time on first boot to resolve the GitHub App installation ID",
+    "The chart version must be bumped on every change to charts/pr-generator/"
+  ]
 }

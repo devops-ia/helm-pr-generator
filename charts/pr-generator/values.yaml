@@ -51,11 +51,14 @@ config:
       timeout: 30
     bitbucket-org1:
       enabled: false
-      # type: bitbucket          # inferred from key name; set explicitly for non-standard names
+      type: bitbucket              # required for non-standard names
       workspace: ""
       repoSlug: ""
-      tokenEnv: "BITBUCKET_TOKEN"  # env var name injected into the container
-      tokenKey: "token"             # key in secrets.bitbucket Secret holding the token
+      # Use a distinct tokenEnv per provider when running multiple Bitbucket instances.
+      # Each provider must reference a unique env var; the value is sourced from the
+      # shared secrets.bitbucket Secret via the tokenKey below.
+      tokenEnv: "BITBUCKET_ORG1_TOKEN"  # env var name injected into the container
+      tokenKey: "org1-token"             # key in secrets.bitbucket Secret holding the token
       closeSourceBranch: true
       timeout: 30
 
@@ -95,6 +98,23 @@ podLabels: {}
 annotations: {}
 podSecurityContext: {}
 
+serviceAccount:
+  # Create a dedicated ServiceAccount for this deployment.
+  # Set to false to use an existing account (specify name below).
+  create: true
+  name: ""              # defaults to the fullname when create=true; use "default" when create=false
+  annotations: {}       # e.g. for EKS Pod Identity or Workload Identity bindings
+
+service:
+  type: ClusterIP
+  port: 8080            # must match config.healthPort
+  annotations: {}
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1       # set either minAvailable or maxUnavailable, not both
+  # maxUnavailable: 0
+
 securityContext:
   runAsNonRoot: true
   runAsUser: 1000
@@ -129,6 +149,18 @@ readinessProbe:
   timeoutSeconds: 2
   failureThreshold: 3
   successThreshold: 1
+
+# Optional startup probe — useful when the app needs more time to resolve the
+# GitHub App installation ID on first boot. Leave empty ({}) to disable.
+startupProbe: {}
+# Example:
+# startupProbe:
+#   httpGet:
+#     path: /livez
+#     port: health
+#   initialDelaySeconds: 5
+#   periodSeconds: 5
+#   failureThreshold: 12    # up to 60 s before liveness kicks in
 
 volumes: []
 volumeMounts: []

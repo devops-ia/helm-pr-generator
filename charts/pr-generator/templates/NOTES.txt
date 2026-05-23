@@ -9,18 +9,22 @@ pr-generator {{ .Chart.AppVersion }} has been deployed successfully.
 
 ┌─ Configuration ──────────────────────────────────────────────────────────┐
 {{- if .Values.config.dryRun }}
-│  ⚠  DRY-RUN mode is ENABLED — no PRs will be created.
+│  DRY-RUN mode is ENABLED — no PRs will be created.
 {{- end }}
 │  Scan frequency : {{ .Values.config.scanFrequency }}s
 │  Log level      : {{ .Values.config.logLevel }}
 │  Log format     : {{ .Values.config.logFormat }}
 │  Rules          : {{ len .Values.config.rules }}
 │  Providers      :
-{{- if .Values.config.providers.github.enabled }}
-│    • GitHub (auth: {{ .Values.config.providers.github.authMethod }})  {{ .Values.config.providers.github.owner }}/{{ .Values.config.providers.github.repo }}
+{{- range $name, $p := .Values.config.providers }}
+{{- if $p.enabled }}
+{{- $ptype := $p.type | default $name }}
+{{- if eq $ptype "github" }}
+│    • GitHub ({{ $name }}, auth: {{ $p.authMethod | default "app" }})  {{ $p.owner }}/{{ $p.repo }}
+{{- else if eq $ptype "bitbucket" }}
+│    • Bitbucket ({{ $name }})  {{ $p.workspace }}/{{ $p.repoSlug }}
 {{- end }}
-{{- if .Values.config.providers.bitbucket.enabled }}
-│    • Bitbucket  {{ .Values.config.providers.bitbucket.workspace }}/{{ .Values.config.providers.bitbucket.repoSlug }}
+{{- end }}
 {{- end }}
 └──────────────────────────────────────────────────────────────────────────┘
 
