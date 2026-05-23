@@ -48,4 +48,13 @@ app.kubernetes.io/name: {{ include "pr-generator.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-
+{{/*
+ServiceAccount name.
+*/}}
+{{- define "pr-generator.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- default (include "pr-generator.fullname" .) .Values.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.serviceAccount.name }}
+{{- end }}
+{{- end }}
