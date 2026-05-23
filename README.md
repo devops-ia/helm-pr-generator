@@ -19,7 +19,7 @@ helm install [RELEASE_NAME] pr-generator/pr-generator
 
 ## Introduction
 
-`pr-generator` watches for branches matching configurable regex patterns (e.g. those created by Argo CD Image Updater) and automatically opens Pull Requests against configured destination branches in both **GitHub** (via GitHub App) and **Bitbucket** (via token).
+`pr-generator` watches for branches matching configurable regex patterns (e.g. those created by Argo CD Image Updater) and automatically opens Pull Requests against configured destination branches in both **GitHub** (via GitHub App or PAT) and **Bitbucket** (via token).
 
 ## Prerequisites
 
@@ -73,7 +73,7 @@ See [`charts/pr-generator/values.yaml`](charts/pr-generator/values.yaml) for the
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `image.repository` | Container image repository | `devopsiaci/pr-generator` |
+| `image.repository` | Container image repository | `ghcr.io/devops-ia/pr-generator` |
 | `image.tag` | Container image tag | `""` (uses `appVersion`) |
 | `image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `config.scanFrequency` | Scan interval in seconds | `300` |
@@ -81,14 +81,14 @@ See [`charts/pr-generator/values.yaml`](charts/pr-generator/values.yaml) for the
 | `config.logFormat` | Log format (`text` or `json` for structured logging) | `text` |
 | `config.dryRun` | Dry-run mode (no PRs created) | `false` |
 | `config.healthPort` | Health check port | `8080` |
-| `config.providers.github.enabled` | Enable GitHub provider | `true` |
+| `config.providers.github.enabled` | Enable GitHub provider | `false` |
 | `config.providers.github.authMethod` | Auth method: `app` (GitHub App) or `pat` (Personal Access Token) | `app` |
 | `config.providers.github.owner` | GitHub org/user | `""` |
 | `config.providers.github.repo` | GitHub repository name | `""` |
 | `config.providers.github.appId` | GitHub App ID *(authMethod: app)* | `""` |
 | `config.providers.github.installationId` | GitHub App Installation ID *(authMethod: app, auto-resolved if empty)* | `""` |
 | `config.providers.github.tokenEnv` | Env var name for PAT token *(authMethod: pat)* | `GITHUB_TOKEN` |
-| `config.providers.bitbucket.enabled` | Enable Bitbucket provider | `true` |
+| `config.providers.bitbucket.enabled` | Enable Bitbucket provider | `false` |
 | `config.providers.bitbucket.workspace` | Bitbucket workspace | `""` |
 | `config.providers.bitbucket.repoSlug` | Bitbucket repo slug | `""` |
 | `config.rules` | List of branch pattern → destination rules | see `values.yaml` |
@@ -99,6 +99,12 @@ See [`charts/pr-generator/values.yaml`](charts/pr-generator/values.yaml) for the
 | `secrets.github.token` | Inline PAT *(authMethod: pat, dev/test only)* | `""` |
 | `secrets.bitbucket.existingSecret` | Existing Secret with Bitbucket token | `""` |
 | `secrets.bitbucket.token` | Inline token (dev/test only) | `""` |
+| `annotationDiscovery.enabled` | Enable annotation-based rule discovery from ArgoCD Applications | `false` |
+| `annotationDiscovery.mode` | Discovery mode: `config_only`, `annotations_only`, `hybrid` | `hybrid` |
+| `annotationDiscovery.annotationPrefix` | Annotation key prefix | `pr-generator.io` |
+| `metrics.enabled` | Expose `/metrics` Prometheus endpoint | `true` |
+| `metrics.podAnnotations` | Pod annotations for Prometheus scraping | see `values.yaml` |
+| `metrics.serviceMonitor.enabled` | Create Prometheus Operator `ServiceMonitor` | `false` |
 
 ## Using existing Secrets (recommended)
 
@@ -116,6 +122,60 @@ helm install pr-generator devops-ia/pr-generator \
   --set secrets.bitbucket.existingSecret=pr-generator-bitbucket
 ```
 
+## Annotation-based rule discovery
+
+Each ArgoCD Application can declare its own PR rules via annotations, removing the need to
+update `config.rules` when onboarding a new application.
+
+```yaml
+annotationDiscovery:
+  enabled: true
+  mode: hybrid          # config_only | annotations_only | hybrid
+  annotationPrefix: "pr-generator.io"
+```
+
+Annotation schema on an ArgoCD Application:
+
+```yaml
+metadata:
+  annotations:
+    pr-generator.io/enabled: "true"
+    pr-generator.io/pattern: "argocd-image-updater-.*-dev-.*"
+    pr-generator.io/destination.github: "develop"
+    pr-generator.io/destination.bitbucket: "dev"
+```
+
+Enabling annotation discovery automatically creates a ClusterRole and ClusterRoleBinding
+that grant the chart ServiceAccount read access to `applications.argoproj.io` cluster-wide.
+
+## Prometheus metrics
+
+The app exposes a `/metrics` endpoint (Prometheus format) on the health port (default `8080`).
+Pod scrape annotations are added automatically when `metrics.enabled: true` (default).
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `pr_generator_prs_created_total` | Counter | PRs successfully created |
+| `pr_generator_prs_skipped_total` | Counter | PRs skipped (already exists) |
+| `pr_generator_prs_failed_total` | Counter | PR creation failures |
+| `pr_generator_scan_cycles_total` | Counter | Completed scan cycles by result |
+| `pr_generator_scan_duration_seconds` | Histogram | Scan cycle duration |
+| `pr_generator_rules_active` | Gauge | Active scan rules |
+| `pr_generator_annotation_rules_discovered` | Gauge | Rules from ArgoCD annotations |
+| `pr_generator_provider_errors_total` | Counter | Provider-level errors |
+| `pr_generator_up` | Gauge | 1 after first successful scan cycle |
+
+Enable `ServiceMonitor` for Prometheus Operator:
+
+```yaml
+metrics:
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+```
+
 ## Testing
 
 See [TESTING.md](TESTING.md) for detailed testing instructions.
+

@@ -29,6 +29,11 @@ spec:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+        {{- if .Values.metrics.enabled }}
+        {{- with .Values.metrics.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- end }}
       labels:
         {{- include "pr-generator.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
@@ -40,6 +45,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "pr-generator.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.annotationDiscovery.enabled }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       # No initContainers — the Docker image already contains all dependencies

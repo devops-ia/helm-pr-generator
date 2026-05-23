@@ -1,0 +1,448 @@
+# helm-pr-generator
+
+> Helm chart for [pr-generator](https://github.com/devops-ia/pr-generator) — automated Pull Request
+> creation daemon for Kubernetes. Watches branches matching configurable regex patterns (e.g. those
+> created by ArgoCD Image Updater) and opens PRs against destination branches in GitHub and Bitbucket.
+
+## Docs
+
+- [Chart README](https://github.com/devops-ia/helm-pr-generator/blob/main/charts/pr-generator/README.md): Auto-generated values reference
+- [Root README](https://github.com/devops-ia/helm-pr-generator/blob/main/README.md): Installation and configuration guide
+- [TESTING.md](https://github.com/devops-ia/helm-pr-generator/blob/main/TESTING.md): Testing scenarios and validation commands
+- [pr-generator app docs](https://context7.com/devops-ia/pr-generator): Python daemon documentation
+
+## Quick Install
+
+```bash
+helm repo add pr-generator https://devops-ia.github.io/helm-pr-generator
+helm repo update
+helm install [RELEASE_NAME] pr-generator/pr-generator
+```
+
+## Install — GitHub App Authentication (default)
+
+```bash
+helm install pr-generator devops-ia/pr-generator \
+  --namespace pr-generator \
+  --create-namespace \
+  --set config.providers.github.owner=my-org \
+  --set config.providers.github.repo=my-repo \
+  --set config.providers.github.appId=123456 \
+  --set config.providers.github.installationId=78901234 \
+  --set secrets.github.privateKey="$(cat /path/to/private-key.pem)" \
+  --set config.providers.bitbucket.workspace=my-workspace \
+  --set config.providers.bitbucket.repoSlug=my-repo \
+  --set secrets.bitbucket.token=my-token
+```
+
+## Install — GitHub PAT Authentication
+
+```bash
+helm install pr-generator devops-ia/pr-generator \
+  --namespace pr-generator \
+  --create-namespace \
+  --set config.providers.github.authMethod=pat \
+  --set config.providers.github.owner=my-org \
+  --set config.providers.github.repo=my-repo \
+  --set secrets.github.token=ghp_yourtoken \
+  --set config.providers.bitbucket.workspace=my-workspace \
+  --set config.providers.bitbucket.repoSlug=my-repo \
+  --set secrets.bitbucket.token=my-token
+```
+
+## Install — Production with Existing Secrets (recommended)
+
+```bash
+# Create secrets beforehand (e.g. via External Secrets Operator)
+kubectl create secret generic pr-generator-github \
+  --from-file=private-key.pem=/path/to/private-key.pem \
+  -n pr-generator
+
+kubectl create secret generic pr-generator-bitbucket \
+  --from-literal=token=my-token \
+  -n pr-generator
+
+helm install pr-generator devops-ia/pr-generator \
+  --namespace pr-generator \
+  --create-namespace \
+  --set config.providers.github.owner=my-org \
+  --set config.providers.github.repo=my-repo \
+  --set config.providers.github.appId=123456 \
+  --set config.providers.github.installationId=78901234 \
+  --set secrets.github.existingSecret=pr-generator-github \
+  --set config.providers.bitbucket.workspace=my-workspace \
+  --set config.providers.bitbucket.repoSlug=my-repo \
+  --set secrets.bitbucket.existingSecret=pr-generator-bitbucket
+```
+
+## Install — values.yaml (recommended for complex deployments)
+
+```bash
+helm install pr-generator devops-ia/pr-generator \
+  --namespace pr-generator \
+  --create-namespace \
+  -f values.yaml
+```
+
+## Core values.yaml
+
+```yaml
+image:
+  repository: ghcr.io/devops-ia/pr-generator
+  tag: ""           # defaults to Chart.appVersion
+  pullPolicy: IfNotPresent
+
+config:
+  scanFrequency: 300          # seconds between scan cycles
+  logLevel: INFO              # DEBUG | INFO | WARNING | ERROR
+  logFormat: text             # "text" or "json" (structured, recommended for production)
+  dryRun: false
+  healthPort: 8080
+
+  providers:
+    github:
+      enabled: true
+      authMethod: app          # "app" (GitHub App) or "pat" (Personal Access Token)
+      owner: my-org
+      repo: my-repo
+      appId: "123456"
+      installationId: ""       # auto-resolved from repo if empty
+      privateKeyKey: "private-key.pem"
+    bitbucket:
+      enabled: true
+      workspace: my-workspace
+      repoSlug: my-repo
+      tokenEnv: BITBUCKET_TOKEN
+      closeSourceBranch: true
+
+  rules:
+    - pattern: "argocd-image-updater-.*-dev-.*"
+      destinations:
+        github: "develop"
+        bitbucket: "dev"
+    - pattern: "argocd-image-updater-.*-pro-.*"
+      destinations:
+        github: "main"
+        bitbucket: "master"
+
+secrets:
+  github:
+    existingSecret: "pr-generator-github"
+  bitbucket:
+    existingSecret: "pr-generator-bitbucket"
+```
+
+## Multi-Provider Setup (two GitHub orgs + two Bitbucket workspaces)
+
+```yaml
+config:
+  providers:
+    github:                              # type inferred from key name
+      enabled: true
+      authMethod: app
+      owner: org-a
+      repo: repo-a
+      appId: "111111"
+      privateKeyKey: "org-a-key.pem"    # key inside secrets.github Secret
+    github-org-b:                        # non-standard name → requires type
+      enabled: true
+      type: github
+      authMethod: pat
+      owner: org-b
+      repo: repo-b
+      tokenEnv: GITHUB_ORG_B_TOKEN
+      tokenKey: org-b-token
+    bitbucket:                           # type inferred
+      enabled: true
+      workspace: ws-a
+      repoSlug: repo-a
+      tokenEnv: BITBUCKET_TOKEN
+      tokenKey: token
+    bitbucket-ws2:                       # non-standard name → requires type
+      enabled: true
+      type: bitbucket
+      workspace: ws-b
+      repoSlug: repo-b
+      tokenEnv: BITBUCKET_WS2_TOKEN      # must be unique per provider
+      tokenKey: ws2-token
+
+  rules:
+    - pattern: "argocd-image-updater-.*-dev-.*"
+      destinations:
+        github: develop
+        github-org-b: develop
+        bitbucket: dev
+        bitbucket-ws2: dev
+```
+
+## Annotation-based Rule Discovery (ArgoCD)
+
+Mirrors the ArgoCD Image Updater model: each ArgoCD Application CR declares its own PR rules
+via annotations. No central `config.rules` change needed when onboarding a new application.
+
+```yaml
+annotationDiscovery:
+  enabled: true
+  mode: hybrid          # config_only | annotations_only | hybrid
+  annotationPrefix: "pr-generator.io"
+```
+
+Mode semantics:
+- `config_only` — static `config.rules` only; no Kubernetes API access (default, safe)
+- `annotations_only` — rules come exclusively from ArgoCD Application annotations; `config.rules` ignored
+- `hybrid` — both sources active; annotation destinations take precedence on same pattern+provider collision
+
+Enabling `annotationDiscovery` automatically:
+- Creates a ClusterRole granting `get`/`list` on `applications.argoproj.io`
+- Creates a ClusterRoleBinding for the chart ServiceAccount
+- Sets `automountServiceAccountToken: true` on the pod (overrides SA-level `false`)
+
+Annotation schema on an ArgoCD Application (using default prefix `pr-generator.io`):
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: my-app
+  namespace: argocd
+  annotations:
+    pr-generator.io/enabled: "true"
+    pr-generator.io/pattern: "argocd-image-updater-.*-dev-.*"
+    pr-generator.io/destination.github: "develop"
+    pr-generator.io/destination.bitbucket: "dev"
+```
+
+The `destination.<provider-key>` suffix maps to keys under `config.providers`.
+
+Install with annotation discovery enabled:
+
+```bash
+helm install pr-generator devops-ia/pr-generator \
+  --namespace pr-generator \
+  --create-namespace \
+  --set annotationDiscovery.enabled=true \
+  --set annotationDiscovery.mode=hybrid \
+  --set config.providers.github.owner=my-org \
+  --set config.providers.github.repo=my-repo \
+  --set config.providers.github.appId=123456 \
+  --set secrets.github.existingSecret=pr-generator-github
+```
+
+## Prometheus Metrics
+
+The app exposes `/metrics` (Prometheus format) on the same port as the health server (default `8080`).
+`metrics.enabled: true` is the default — no extra configuration needed for basic scraping.
+
+### Available metrics
+
+| Metric | Type | Description |
+|---|---|---|
+| `pr_generator_prs_created_total` | Counter | PRs successfully created, by provider and destination |
+| `pr_generator_prs_skipped_total` | Counter | PRs skipped (already exists), by provider and destination |
+| `pr_generator_prs_failed_total` | Counter | PR creation failures, by provider and error_type |
+| `pr_generator_scan_cycles_total` | Counter | Completed scan cycles, by result (success/partial/error) |
+| `pr_generator_scan_duration_seconds` | Histogram | Scan cycle wall-clock duration |
+| `pr_generator_rules_active` | Gauge | Active scan rules at end of last cycle |
+| `pr_generator_annotation_rules_discovered` | Gauge | Rules discovered from ArgoCD annotations |
+| `pr_generator_provider_errors_total` | Counter | Provider-level errors, by provider and error_type |
+| `pr_generator_up` | Gauge | 1 if the daemon completed at least one scan cycle, 0 otherwise |
+
+### Pod annotations (scrape without Prometheus Operator)
+
+```yaml
+metrics:
+  enabled: true
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/metrics"
+    prometheus.io/port: "8080"
+```
+
+### ServiceMonitor (Prometheus Operator)
+
+```yaml
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true          # requires Prometheus Operator CRDs
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}             # must match Operator's serviceMonitorSelector
+    namespace: ""          # defaults to Release.Namespace
+```
+
+Install with ServiceMonitor:
+
+```bash
+helm install pr-generator devops-ia/pr-generator \
+  --namespace pr-generator \
+  --create-namespace \
+  --set metrics.serviceMonitor.enabled=true \
+  --set metrics.serviceMonitor.labels.release=kube-prometheus-stack
+```
+
+Scrape the metrics endpoint manually:
+
+```bash
+kubectl port-forward svc/pr-generator 8080:8080 -n pr-generator
+curl -s http://localhost:8080/metrics | grep pr_generator
+```
+
+## Scan Rules Configuration
+
+```yaml
+config:
+  rules:
+    # Each rule: a branch regex pattern + map of provider-key → destination branch
+    - pattern: "argocd-image-updater-.*-dev-.*"
+      destinations:
+        github: "develop"
+        bitbucket: "dev"
+    - pattern: "argocd-image-updater-.*-staging-.*"
+      destinations:
+        github: "staging"
+    - pattern: "argocd-image-updater-.*-pro-.*"
+      destinations:
+        github: "main"
+        bitbucket: "master"
+```
+
+Rules can be empty (`[]`) when `annotationDiscovery.mode: annotations_only`.
+For `config_only` mode at least one rule is required (enforced at runtime by the daemon).
+
+## Health Endpoints
+
+The health server runs on `config.healthPort` (default `8080`).
+
+| Endpoint | Description |
+|---|---|
+| `GET /livez` | Liveness — returns 200 when the process is alive |
+| `GET /readyz` | Readiness — returns 200 after the first scan cycle completes |
+| `GET /healthz` | Combined liveness + readiness |
+| `GET /metrics` | Prometheus metrics (when `metrics.enabled: true`) |
+
+```bash
+kubectl port-forward svc/pr-generator 8080:8080 -n pr-generator
+curl http://localhost:8080/livez    # {"status":"ok"}
+curl http://localhost:8080/readyz   # {"status":"ok"} after first cycle
+curl http://localhost:8080/healthz
+curl http://localhost:8080/metrics
+```
+
+## ServiceAccount and RBAC
+
+```yaml
+serviceAccount:
+  create: true          # set false to use an existing SA
+  name: ""              # defaults to fullname; use "default" when create=false
+  annotations: {}       # for EKS Pod Identity / Workload Identity bindings
+```
+
+When `annotationDiscovery.enabled=true`, a ClusterRole and ClusterRoleBinding are created
+automatically to grant the SA read access to `applications.argoproj.io` cluster-wide.
+
+## PodDisruptionBudget
+
+```yaml
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+```
+
+Note: `replicas` is hardcoded to `1`. PDB with `minAvailable: 1` prevents voluntary eviction
+(node drains) but does not help with availability — it is useful mainly to block disruptions
+during cluster maintenance.
+
+## Resource Limits
+
+```yaml
+resources:
+  limits:
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+```
+
+## Security Context
+
+```yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+```
+
+## Startup Probe (optional)
+
+Useful when the app needs extra time on first boot to resolve the GitHub App installation ID.
+
+```yaml
+startupProbe:
+  httpGet:
+    path: /livez
+    port: health
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 12    # up to 60 s grace before liveness kicks in
+```
+
+## Dry-run Mode
+
+Logs PR creation without actually opening PRs. Useful for validating rule patterns.
+
+```bash
+helm install pr-generator devops-ia/pr-generator \
+  --namespace pr-generator \
+  --create-namespace \
+  --set config.dryRun=true \
+  --set config.logLevel=DEBUG \
+  --set config.providers.github.owner=my-org \
+  --set config.providers.github.repo=my-repo \
+  --set config.providers.github.appId=123456 \
+  --set secrets.github.existingSecret=pr-generator-github
+```
+
+## Custom Scan Rules via CLI
+
+```bash
+helm install pr-generator devops-ia/pr-generator \
+  --namespace pr-generator \
+  --create-namespace \
+  --set 'config.rules[0].pattern=argocd-image-updater-.*-dev-.*' \
+  --set 'config.rules[0].destinations.github=develop' \
+  --set 'config.rules[0].destinations.bitbucket=dev' \
+  --set 'config.rules[1].pattern=argocd-image-updater-.*-pro-.*' \
+  --set 'config.rules[1].destinations.github=main' \
+  --set 'config.rules[1].destinations.bitbucket=master'
+```
+
+## Validation Commands
+
+```bash
+# Verify pod is running
+kubectl describe pod -l app.kubernetes.io/name=pr-generator -n pr-generator
+
+# Check rendered config
+kubectl exec -it deploy/pr-generator -n pr-generator -- cat /etc/pr-generator/config.yaml
+
+# Stream logs
+kubectl logs -l app.kubernetes.io/name=pr-generator -n pr-generator -f
+
+# Health checks
+kubectl port-forward svc/pr-generator 8080:8080 -n pr-generator &
+curl http://localhost:8080/livez
+curl http://localhost:8080/readyz
+
+# Metrics
+curl -s http://localhost:8080/metrics | grep pr_generator
+```
+
+## Uninstall
+
+```bash
+helm uninstall pr-generator -n pr-generator
+```

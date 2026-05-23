@@ -69,7 +69,7 @@
         },
         "rules": {
           "type": "array",
-          "minItems": 1,
+          "minItems": 0,
           "items": {
             "type": "object",
             "properties": {
@@ -84,7 +84,15 @@
           }
         }
       },
-      "required": ["rules"]
+      "required": []
+    },
+    "annotationDiscovery": {
+      "type": "object",
+      "properties": {
+        "enabled":          { "type": "boolean" },
+        "mode":             { "type": "string", "enum": ["config_only", "annotations_only", "hybrid"] },
+        "annotationPrefix": { "type": "string", "minLength": 1 }
+      }
     },
     "secrets": {
       "type": "object",
@@ -102,6 +110,29 @@
           "properties": {
             "existingSecret": { "type": "string" },
             "token":          { "type": "string" }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "podAnnotations": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "properties": {
+            "enabled":      { "type": "boolean" },
+            "interval":     { "type": "string" },
+            "scrapeTimeout":{ "type": "string" },
+            "labels": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "namespace":    { "type": "string" }
           }
         }
       }

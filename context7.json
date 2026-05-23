@@ -1,20 +1,26 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
   "projectTitle": "helm-pr-generator",
-  "description": "Helm chart for pr-generator — deploys the automated PR creation daemon on Kubernetes. Supports GitHub App and PAT authentication, Bitbucket Cloud, multi-provider setups, and optional ServiceAccount/PDB creation.",
+  "description": "Helm chart for pr-generator — automated PR creation daemon for Kubernetes. GitHub App/PAT, Bitbucket, multi-provider, ArgoCD annotation discovery, Prometheus metrics.",
   "url": "https://context7.com/devops-ia/helm-pr-generator",
   "public_key": "pk_poNqP0E20Jn62M589pdY6",
   "folders": ["charts"],
   "excludeFolders": [".github"],
   "excludeFiles": ["CHANGELOG.md"],
   "rules": [
-    "The chart enforces replicas: 1 — do not increase; the application has no distributed coordination",
-    "Provider names 'github' and 'bitbucket' auto-infer their type; all other names require an explicit type field",
+    "The chart enforces replicas: 1 — do not increase; the application has no distributed coordination and multiple replicas cause duplicate PR creation",
+    "Provider names 'github' and 'bitbucket' auto-infer their type; all other names require an explicit 'type: github' or 'type: bitbucket' field",
     "Each Bitbucket or GitHub PAT provider must use a unique tokenEnv value to avoid credential collisions",
-    "config.rules requires minItems: 1 — the chart will not install without at least one rule",
-    "Use secrets.github.existingSecret / secrets.bitbucket.existingSecret for production; inline secrets are for dev/test only",
+    "config.rules can be empty ([]) when annotationDiscovery.mode is 'annotations_only'; config.rules is required for 'config_only' mode (runtime validation)",
+    "Use secrets.github.existingSecret / secrets.bitbucket.existingSecret for production; inline secrets (secrets.github.privateKey etc.) are for dev/test only",
     "serviceAccount.create defaults to true; set to false and provide a name to use an existing ServiceAccount",
     "startupProbe is empty by default (opt-in); enable it when the app needs extra time on first boot to resolve the GitHub App installation ID",
-    "The chart version must be bumped on every change to charts/pr-generator/"
+    "The chart version must be bumped on every change to charts/pr-generator/",
+    "annotationDiscovery.enabled=true automatically creates a ClusterRole + ClusterRoleBinding and sets automountServiceAccountToken=true on the pod — requires serviceAccount.create=true",
+    "annotationDiscovery.mode accepts: 'config_only' (static rules only, default), 'annotations_only' (rules from ArgoCD Application annotations only), 'hybrid' (both sources; annotation destinations take precedence on collision)",
+    "Annotation schema uses the annotationDiscovery.annotationPrefix (default: 'pr-generator.io'): pr-generator.io/enabled='true', pr-generator.io/pattern='<regex>', pr-generator.io/destination.<provider-key>='<branch>'",
+    "metrics.enabled=true (default) exposes /metrics on the health port (8080) with Prometheus-format counters, histograms, and gauges; disable only if you don't need observability",
+    "metrics.serviceMonitor.enabled=true creates a ServiceMonitor CRD — requires Prometheus Operator (kube-prometheus-stack or standalone) to be installed in the cluster",
+    "metrics.podAnnotations adds prometheus.io/scrape, prometheus.io/path, prometheus.io/port to the pod spec for scrape without the Operator; set podAnnotations: {} to suppress them"
   ]
 }

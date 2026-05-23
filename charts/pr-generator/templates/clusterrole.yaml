@@ -1,0 +1,12 @@
+{{- if and .Values.annotationDiscovery.enabled .Values.serviceAccount.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "pr-generator.fullname" . }}-annotation-discovery
+  labels:
+    {{- include "pr-generator.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "list"]
+{{- end }}

@@ -59,3 +59,9 @@ data:
           {{ $provider }}: {{ $branch | quote }}
           {{- end }}
       {{- end }}
+
+    {{- if .Values.annotationDiscovery.enabled }}
+    annotation_discovery:
+      mode: {{ .Values.annotationDiscovery.mode | quote }}
+      annotation_prefix: {{ .Values.annotationDiscovery.annotationPrefix | quote }}
+    {{- end }}
