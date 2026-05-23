@@ -115,6 +115,58 @@ podDisruptionBudget:
   minAvailable: 1       # set either minAvailable or maxUnavailable, not both
   # maxUnavailable: 0
 
+# Annotation-based rule discovery from ArgoCD Application resources.
+#
+# When enabled, pr-generator reads annotations on ArgoCD Application CRs
+# (cluster-wide) and dynamically derives scan rules — mirroring the model used
+# by ArgoCD Image Updater.
+#
+# Annotation schema (using the default prefix):
+#
+#   pr-generator.io/enabled: "true"
+#   pr-generator.io/pattern: "argocd-image-updater-.*-dev-.*"
+#   pr-generator.io/destination.github: "develop"
+#   pr-generator.io/destination.bitbucket: "dev"
+#
+# The destination.<provider-key> suffix maps to provider keys under config.providers.
+#
+# Enabling this automatically:
+#   - Creates a ClusterRole + ClusterRoleBinding granting get/list on
+#     applications.argoproj.io (requires serviceAccount.create: true)
+#   - Sets automountServiceAccountToken: true on the pod spec
+#
+# mode values:
+#   config_only      - static rules from config.rules only (default, no k8s access)
+#   annotations_only - rules come exclusively from ArgoCD Application annotations;
+#                      config.rules is ignored at runtime
+#   hybrid           - both sources active; annotation destinations take precedence
+#                      on same pattern+provider collision
+annotationDiscovery:
+  enabled: false
+  mode: hybrid                           # config_only | annotations_only | hybrid
+  annotationPrefix: "pr-generator.io"   # annotation key prefix (no trailing slash)
+
+# Prometheus metrics exposed at /metrics on the health port (default: 8080).
+#
+# podAnnotations adds standard scrape annotations to the pod spec so any
+# Prometheus deployment can discover the target without the Operator.
+#
+# serviceMonitor creates a ServiceMonitor CRD resource for Prometheus Operator.
+# Requires cert-manager or the kube-prometheus-stack CRDs to be installed.
+metrics:
+  enabled: true
+  # Pod annotations for Prometheus scraping without the Operator.
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/metrics"
+    prometheus.io/port: "8080"
+  serviceMonitor:
+    enabled: false            # set true when Prometheus Operator is installed
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}                # extra labels matched by the Operator's serviceMonitorSelector
+    namespace: ""             # defaults to Release.Namespace
+
 securityContext:
   runAsNonRoot: true
   runAsUser: 1000

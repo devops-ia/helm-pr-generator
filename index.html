@@ -521,7 +521,7 @@
   <div class="container">
     <p class="section-label">Features</p>
     <h2 class="section-title" id="features-title">Everything you need, out of the box</h2>
-    <p class="section-desc">Production-ready defaults with security hardening and flexible multi-provider support.</p>
+    <p class="section-desc">Production-ready defaults with security hardening, flexible multi-provider support, annotation-based ArgoCD discovery, and built-in Prometheus observability.</p>
     <div class="features">
 
       <div class="feature-card">
@@ -594,6 +594,22 @@
         </div>
         <h3>ArgoCD ready</h3>
         <p>Designed to pair with ArgoCD Image Updater. Watches branches created by the updater and opens PRs automatically.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>
+        </div>
+        <h3>Annotation discovery</h3>
+        <p>Each ArgoCD Application declares its own PR rules via annotations. Three modes: <code>config_only</code>, <code>annotations_only</code>, <code>hybrid</code>.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><polyline points="18 17 13 12 9 16 5 12"/></svg>
+        </div>
+        <h3>Prometheus metrics</h3>
+        <p>Built-in <code>/metrics</code> endpoint with counters, histograms, and gauges. Pod annotations and ServiceMonitor included.</p>
       </div>
 
     </div>
@@ -669,7 +685,7 @@
         <button class="copy-btn" id="copy-argocd" aria-label="Copy ArgoCD config">Copy</button>
       </div>
       <pre id="code-argocd"><span class="key">config</span>:
-  <span class="key">scanFrequency</span>: <span class="str">60</span>
+  <span class="key">scanFrequency</span>: <span class="str">300</span>
   <span class="key">providers</span>:
     <span class="key">github</span>:
       <span class="key">enabled</span>: <span class="str">true</span>
@@ -679,20 +695,122 @@
       <span class="key">installationId</span>: <span class="str">"78901234"</span>
 
   <span class="key">rules</span>:
-    - <span class="key">name</span>: <span class="str">image-updater-prs</span>
-      <span class="key">branchPattern</span>: <span class="str">"^image-updater/.*"</span>   <span class="comment"># ArgoCD Image Updater branch prefix</span>
+    - <span class="key">pattern</span>: <span class="str">"argocd-image-updater-.*-dev-.*"</span>   <span class="comment"># regex matching Image Updater branches</span>
       <span class="key">destinations</span>:
-        - <span class="key">provider</span>: <span class="str">github</span>
-          <span class="key">base</span>: <span class="str">main</span>
+        <span class="key">github</span>: <span class="str">develop</span>
+    - <span class="key">pattern</span>: <span class="str">"argocd-image-updater-.*-pro-.*"</span>
+      <span class="key">destinations</span>:
+        <span class="key">github</span>: <span class="str">main</span>
 
 <span class="key">secrets</span>:
   <span class="key">github</span>:
-    <span class="key">existingSecret</span>: <span class="str">github-app-secret</span>   <span class="comment"># key: privateKey</span></pre>
+    <span class="key">existingSecret</span>: <span class="str">github-app-secret</span>   <span class="comment"># key: private-key.pem</span></pre>
     </div>
 
     <div class="callout">
       <strong>Tip:</strong> Set <code>config.dryRun: true</code> first to verify branch matching before enabling live PR creation.
       The daemon logs which branches matched each rule on every scan cycle.
+    </div>
+  </div>
+</section>
+
+<!-- ── Annotation Discovery ──────────────────────────────── -->
+<section aria-labelledby="ann-title">
+  <div class="container">
+    <p class="section-label">ArgoCD annotation discovery</p>
+    <h2 class="section-title" id="ann-title">Per-app rule discovery</h2>
+    <p class="section-desc">
+      Let each ArgoCD Application declare its own PR rules via annotations — no central
+      <code>config.rules</code> change needed when onboarding a new application. Mirrors the model used by ArgoCD Image Updater.
+    </p>
+
+    <div class="code-block" role="region" aria-label="Annotation discovery values">
+      <div class="code-block-header">
+        <span>values.yaml &mdash; enable annotation discovery</span>
+        <button class="copy-btn" id="copy-ann-values" aria-label="Copy annotation discovery values">Copy</button>
+      </div>
+      <pre id="code-ann-values"><span class="key">annotationDiscovery</span>:
+  <span class="key">enabled</span>: <span class="str">true</span>
+  <span class="key">mode</span>: <span class="str">hybrid</span>           <span class="comment"># config_only | annotations_only | hybrid</span>
+  <span class="key">annotationPrefix</span>: <span class="str">"pr-generator.io"</span></pre>
+    </div>
+
+    <div class="code-block" role="region" aria-label="ArgoCD Application annotation schema">
+      <div class="code-block-header">
+        <span>ArgoCD Application &mdash; annotation schema</span>
+        <button class="copy-btn" id="copy-ann-app" aria-label="Copy annotation schema">Copy</button>
+      </div>
+      <pre id="code-ann-app"><span class="key">apiVersion</span>: <span class="str">argoproj.io/v1alpha1</span>
+<span class="key">kind</span>: <span class="str">Application</span>
+<span class="key">metadata</span>:
+  <span class="key">name</span>: <span class="str">my-app</span>
+  <span class="key">namespace</span>: <span class="str">argocd</span>
+  <span class="key">annotations</span>:
+    <span class="key">pr-generator.io/enabled</span>: <span class="str">"true"</span>
+    <span class="key">pr-generator.io/pattern</span>: <span class="str">"argocd-image-updater-.*-dev-.*"</span>
+    <span class="key">pr-generator.io/destination.github</span>: <span class="str">"develop"</span>
+    <span class="key">pr-generator.io/destination.bitbucket</span>: <span class="str">"dev"</span></pre>
+    </div>
+
+    <div class="callout">
+      <strong>RBAC:</strong> Enabling annotation discovery automatically creates a <code>ClusterRole</code> and
+      <code>ClusterRoleBinding</code> granting the chart ServiceAccount <code>get</code>/<code>list</code> on
+      <code>applications.argoproj.io</code> cluster-wide. Requires <code>serviceAccount.create: true</code>.
+    </div>
+  </div>
+</section>
+
+<!-- ── Prometheus Metrics ────────────────────────────────── -->
+<section aria-labelledby="metrics-title">
+  <div class="container">
+    <p class="section-label">Observability</p>
+    <h2 class="section-title" id="metrics-title">Prometheus metrics</h2>
+    <p class="section-desc">
+      Built-in <code>/metrics</code> endpoint (Prometheus format) on the health port (<code>8080</code>).
+      Enabled by default — no extra configuration required for basic scraping.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Metric</th><th>Type</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>pr_generator_prs_created_total</code></td><td>Counter</td><td>PRs successfully created, labelled by provider and destination</td></tr>
+          <tr><td><code>pr_generator_prs_skipped_total</code></td><td>Counter</td><td>PRs skipped because one already exists</td></tr>
+          <tr><td><code>pr_generator_prs_failed_total</code></td><td>Counter</td><td>PR creation failures, labelled by error type</td></tr>
+          <tr><td><code>pr_generator_scan_cycles_total</code></td><td>Counter</td><td>Completed scan cycles by result (success / partial / error)</td></tr>
+          <tr><td><code>pr_generator_scan_duration_seconds</code></td><td>Histogram</td><td>Wall-clock duration of each scan cycle</td></tr>
+          <tr><td><code>pr_generator_rules_active</code></td><td>Gauge</td><td>Active scan rules at end of last cycle</td></tr>
+          <tr><td><code>pr_generator_annotation_rules_discovered</code></td><td>Gauge</td><td>Rules discovered from ArgoCD Application annotations</td></tr>
+          <tr><td><code>pr_generator_provider_errors_total</code></td><td>Counter</td><td>Provider-level errors by provider and error type</td></tr>
+          <tr><td><code>pr_generator_up</code></td><td>Gauge</td><td>1 after first successful scan cycle, 0 on startup</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="code-block" role="region" aria-label="Scrape metrics">
+      <div class="code-block-header">
+        <span>bash &mdash; scrape metrics manually</span>
+        <button class="copy-btn" id="copy-metrics-curl" aria-label="Copy metrics curl">Copy</button>
+      </div>
+      <pre id="code-metrics-curl"><span class="prompt">$ </span><span class="cmd">kubectl</span> port-forward svc/pr-generator 8080:8080 -n pr-generator
+<span class="prompt">$ </span><span class="cmd">curl</span> -s http://localhost:8080/metrics | grep pr_generator</pre>
+    </div>
+
+    <div class="code-block" role="region" aria-label="ServiceMonitor values">
+      <div class="code-block-header">
+        <span>values.yaml &mdash; Prometheus Operator ServiceMonitor</span>
+        <button class="copy-btn" id="copy-metrics-helm" aria-label="Copy ServiceMonitor values">Copy</button>
+      </div>
+      <pre id="code-metrics-helm"><span class="key">metrics</span>:
+  <span class="key">enabled</span>: <span class="str">true</span>
+  <span class="key">serviceMonitor</span>:
+    <span class="key">enabled</span>: <span class="str">true</span>        <span class="comment"># requires Prometheus Operator CRDs</span>
+    <span class="key">interval</span>: <span class="str">30s</span>
+    <span class="key">scrapeTimeout</span>: <span class="str">10s</span>
+    <span class="key">labels</span>:
+      <span class="key">release</span>: <span class="str">kube-prometheus-stack</span>   <span class="comment"># must match serviceMonitorSelector</span></pre>
     </div>
   </div>
 </section>
@@ -720,7 +838,7 @@
           <tr>
             <td><code>config.scanFrequency</code></td>
             <td>Seconds between branch scan cycles.</td>
-            <td><span class="val-default">60</span></td>
+            <td><span class="val-default">300</span></td>
           </tr>
           <tr>
             <td><code>config.dryRun</code></td>
@@ -730,7 +848,7 @@
           <tr>
             <td><code>config.providers.github.enabled</code></td>
             <td>Enable the GitHub provider instance.</td>
-            <td><span class="val-default">true</span></td>
+            <td><span class="val-default">false</span></td>
           </tr>
           <tr>
             <td><code>config.providers.github.authMethod</code></td>
@@ -754,7 +872,7 @@
           </tr>
           <tr>
             <td><code>config.rules</code></td>
-            <td>List of rules: <code>name</code>, <code>branchPattern</code> (regex), <code>destinations</code>. At least one required.</td>
+            <td>List of rules: <code>pattern</code> (regex) + <code>destinations</code> map of provider-key → branch. Can be empty when <code>annotationDiscovery.mode: annotations_only</code>.</td>
             <td><span class="val-default">[]</span></td>
           </tr>
           <tr>
@@ -766,6 +884,26 @@
             <td><code>secrets.bitbucket.existingSecret</code></td>
             <td>Name of an existing Secret with the Bitbucket credential key. Shared by all Bitbucket providers.</td>
             <td><span class="val-default">""</span></td>
+          </tr>
+          <tr>
+            <td><code>annotationDiscovery.enabled</code></td>
+            <td>Read ArgoCD Application CRs to derive scan rules. Creates ClusterRole + ClusterRoleBinding automatically.</td>
+            <td><span class="val-default">false</span></td>
+          </tr>
+          <tr>
+            <td><code>annotationDiscovery.mode</code></td>
+            <td><code>config_only</code>, <code>annotations_only</code>, or <code>hybrid</code>.</td>
+            <td><span class="val-default">"hybrid"</span></td>
+          </tr>
+          <tr>
+            <td><code>metrics.enabled</code></td>
+            <td>Expose <code>/metrics</code> (Prometheus format) on the health port. Adds pod scrape annotations.</td>
+            <td><span class="val-default">true</span></td>
+          </tr>
+          <tr>
+            <td><code>metrics.serviceMonitor.enabled</code></td>
+            <td>Create a Prometheus Operator <code>ServiceMonitor</code>. Requires Operator CRDs installed.</td>
+            <td><span class="val-default">false</span></td>
           </tr>
           <tr>
             <td><code>serviceAccount.create</code></td>
@@ -918,11 +1056,15 @@
       }).catch(function() {});
     });
   }
-  attachCopy('copy-hero',    'hero-code');
-  attachCopy('copy-app',     'code-app');
-  attachCopy('copy-pat',     'code-pat');
-  attachCopy('copy-upgrade', 'code-upgrade');
-  attachCopy('copy-argocd',  'code-argocd');
+  attachCopy('copy-hero',         'hero-code');
+  attachCopy('copy-app',          'code-app');
+  attachCopy('copy-pat',          'code-pat');
+  attachCopy('copy-upgrade',      'code-upgrade');
+  attachCopy('copy-argocd',       'code-argocd');
+  attachCopy('copy-ann-values',   'code-ann-values');
+  attachCopy('copy-ann-app',      'code-ann-app');
+  attachCopy('copy-metrics-curl', 'code-metrics-curl');
+  attachCopy('copy-metrics-helm', 'code-metrics-helm');
 </script>
 
 </body>

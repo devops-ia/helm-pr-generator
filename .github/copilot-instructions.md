@@ -39,7 +39,7 @@ pre-commit run --all-files
 ## Architecture
 
 ### Config rendering pipeline
-`values.yaml` uses **camelCase** keys. The `configmap.yaml` template maps these to **snake_case** when rendering the application's `/etc/pr-generator/config.yaml`. For example, `config.scanFrequency` → `scan_frequency`, `config.providers.github.authMethod` → `auth_method`. Keep this mapping in mind when adding new config fields.
+`values.yaml` uses **camelCase** keys. The `configmap.yaml` template maps these to **snake_case** when rendering the application's `/etc/pr-generator/config.yaml`. For example, `config.scanFrequency` → `scan_frequency`, `config.providers.github.authMethod` → `auth_method`, `annotationDiscovery.mode` → `annotation_mode`. Keep this mapping in mind when adding new config fields.
 
 ### Multi-provider support
 The chart supports multiple named provider instances of the same type (e.g. two GitHub orgs). Each key under `config.providers` is a free-form name used in `rules[].destinations`. The keys `github` and `bitbucket` auto-infer their type; all other names require `type: github` or `type: bitbucket`.
@@ -64,7 +64,23 @@ The deployment is hardcoded to `replicas: 1`. Do **not** change this. The applic
 `deployment.yaml` includes a `checksum/config` pod annotation computed from the rendered ConfigMap. This triggers a rolling restart whenever `config.*` values change — no manual rollout needed.
 
 ### Schema validation
-`values.schema.json` enforces the values. Notably: `config.rules` requires `minItems: 1` — the chart will not install without at least one rule defined.
+`values.schema.json` enforces the values. `config.rules` allows `minItems: 0` — an empty rules list is valid when `annotationDiscovery.mode` is `annotations_only`. Runtime validation in the Python daemon enforces at least one rule for `config_only` mode.
+
+### Annotation-based rule discovery
+`annotationDiscovery` controls whether the daemon reads ArgoCD Application CRs from the cluster to derive scan rules dynamically.
+
+- `annotationDiscovery.enabled: true` creates a `ClusterRole` + `ClusterRoleBinding` granting `get`/`list` on `applications.argoproj.io`, and sets `automountServiceAccountToken: true` on the pod spec (overrides the SA-level `false`). Requires `serviceAccount.create: true`.
+- `annotationDiscovery.mode` values: `config_only` (static rules only, default), `annotations_only` (rules exclusively from annotations), `hybrid` (both sources; annotation destinations take precedence on collision).
+- `annotationDiscovery.annotationPrefix` (default: `pr-generator.io`) is the annotation key prefix. Annotations on ArgoCD Application CRs: `pr-generator.io/enabled`, `pr-generator.io/pattern`, `pr-generator.io/destination.<provider-key>`.
+- Templates: `clusterrole.yaml`, `clusterrolebinding.yaml` (both conditional on `annotationDiscovery.enabled`).
+
+### Prometheus metrics
+The app exposes a `/metrics` endpoint (Prometheus format) on the health port.
+
+- `metrics.enabled: true` (default) activates the endpoint in the daemon and merges `metrics.podAnnotations` into the pod annotations, enabling scraping without the Operator.
+- `metrics.serviceMonitor.enabled: true` renders `templates/servicemonitor.yaml` — a `ServiceMonitor` CRD for Prometheus Operator. Conditional on both `metrics.enabled` and `metrics.serviceMonitor.enabled`.
+- The `metrics.podAnnotations` map is merged with `podAnnotations` in `deployment.yaml` using `mergeOverwrite` — user `podAnnotations` take precedence.
+- `metrics.serviceMonitor.namespace` defaults to `Release.Namespace` via `| default .Release.Namespace`.
 
 ## Key conventions
 

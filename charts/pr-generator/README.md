@@ -1,6 +1,6 @@
 # pr-generator
 
-![Version: 1.0.0](https://img.shields.io/badge/Version-1.0.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v1.0.0](https://img.shields.io/badge/AppVersion-v1.0.0-informational?style=flat-square)
+![Version: 1.4.0](https://img.shields.io/badge/Version-1.4.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v1.2.0](https://img.shields.io/badge/AppVersion-v1.2.0-informational?style=flat-square)
 
 Helm chart for pr-generator — automated PR creation from branch patterns
 
@@ -10,6 +10,7 @@ Helm chart for pr-generator — automated PR creation from branch patterns
 
 | Name | Email | Url |
 | ---- | ------ | --- |
+| ialejandro | <hello@ialejandro.rocks> |  |
 | amartingarcia | <adrianmg231189@gmail.com> |  |
 
 ## Source Code
@@ -22,6 +23,9 @@ Helm chart for pr-generator — automated PR creation from branch patterns
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` |  |
+| annotationDiscovery.annotationPrefix | string | `"pr-generator.io"` |  |
+| annotationDiscovery.enabled | bool | `false` |  |
+| annotationDiscovery.mode | string | `"hybrid"` |  |
 | annotations | object | `{}` |  |
 | config.dryRun | bool | `false` |  |
 | config.healthPort | int | `8080` |  |
@@ -31,8 +35,9 @@ Helm chart for pr-generator — automated PR creation from branch patterns
 | config.providers.bitbucket-org1.enabled | bool | `false` |  |
 | config.providers.bitbucket-org1.repoSlug | string | `""` |  |
 | config.providers.bitbucket-org1.timeout | int | `30` |  |
-| config.providers.bitbucket-org1.tokenEnv | string | `"BITBUCKET_TOKEN"` |  |
-| config.providers.bitbucket-org1.tokenKey | string | `"token"` |  |
+| config.providers.bitbucket-org1.tokenEnv | string | `"BITBUCKET_ORG1_TOKEN"` |  |
+| config.providers.bitbucket-org1.tokenKey | string | `"org1-token"` |  |
+| config.providers.bitbucket-org1.type | string | `"bitbucket"` |  |
 | config.providers.bitbucket-org1.workspace | string | `""` |  |
 | config.providers.bitbucket.closeSourceBranch | bool | `true` |  |
 | config.providers.bitbucket.enabled | bool | `false` |  |
@@ -64,7 +69,7 @@ Helm chart for pr-generator — automated PR creation from branch patterns
 | extraObjects | list | `[]` |  |
 | fullnameOverride | string | `""` |  |
 | image.pullPolicy | string | `"IfNotPresent"` |  |
-| image.repository | string | `"devopsiaci/pr-generator"` |  |
+| image.repository | string | `"ghcr.io/devops-ia/pr-generator"` |  |
 | image.tag | string | `""` |  |
 | imagePullSecrets | list | `[]` |  |
 | livenessProbe.failureThreshold | int | `3` |  |
@@ -74,9 +79,20 @@ Helm chart for pr-generator — automated PR creation from branch patterns
 | livenessProbe.periodSeconds | int | `10` |  |
 | livenessProbe.successThreshold | int | `1` |  |
 | livenessProbe.timeoutSeconds | int | `2` |  |
+| metrics.enabled | bool | `true` |  |
+| metrics.podAnnotations."prometheus.io/path" | string | `"/metrics"` |  |
+| metrics.podAnnotations."prometheus.io/port" | string | `"8080"` |  |
+| metrics.podAnnotations."prometheus.io/scrape" | string | `"true"` |  |
+| metrics.serviceMonitor.enabled | bool | `false` |  |
+| metrics.serviceMonitor.interval | string | `"30s"` |  |
+| metrics.serviceMonitor.labels | object | `{}` |  |
+| metrics.serviceMonitor.namespace | string | `""` |  |
+| metrics.serviceMonitor.scrapeTimeout | string | `"10s"` |  |
 | nameOverride | string | `""` |  |
 | nodeSelector | object | `{}` |  |
 | podAnnotations | object | `{}` |  |
+| podDisruptionBudget.enabled | bool | `false` |  |
+| podDisruptionBudget.minAvailable | int | `1` |  |
 | podLabels | object | `{}` |  |
 | podSecurityContext | object | `{}` |  |
 | readinessProbe.failureThreshold | int | `3` |  |
@@ -98,6 +114,13 @@ Helm chart for pr-generator — automated PR creation from branch patterns
 | securityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | securityContext.runAsNonRoot | bool | `true` |  |
 | securityContext.runAsUser | int | `1000` |  |
+| service.annotations | object | `{}` |  |
+| service.port | int | `8080` |  |
+| service.type | string | `"ClusterIP"` |  |
+| serviceAccount.annotations | object | `{}` |  |
+| serviceAccount.create | bool | `true` |  |
+| serviceAccount.name | string | `""` |  |
+| startupProbe | object | `{}` |  |
 | tolerations | list | `[]` |  |
 | topologySpreadConstraints | list | `[]` |  |
 | volumeMounts | list | `[]` |  |
